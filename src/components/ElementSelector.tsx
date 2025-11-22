@@ -25,10 +25,11 @@ export function ElementSelector({ isActive, onElementSelected, containerRef }: E
       const targetElement = elements.find(el =>
         container.contains(el) &&
         el !== container &&
-        !el.closest('[data-comment-ui]')
+        !el.closest('[data-comment-ui]') &&
+        el.tagName !== 'IFRAME'
       );
 
-      if (targetElement && targetElement !== container) {
+      if (targetElement && targetElement !== container && targetElement.tagName !== 'IFRAME') {
         const targetRect = targetElement.getBoundingClientRect();
         const relativeRect = new DOMRect(
           targetRect.left - rect.left,
@@ -59,12 +60,15 @@ export function ElementSelector({ isActive, onElementSelected, containerRef }: E
       const targetElement = elements.find(el =>
         container.contains(el) &&
         el !== container &&
-        !el.closest('[data-comment-ui]')
+        !el.closest('[data-comment-ui]') &&
+        el.tagName !== 'IFRAME'
       );
 
-      if (targetElement && targetElement !== container) {
+      if (targetElement && targetElement !== container && targetElement.tagName !== 'IFRAME') {
         const selector = generateSelector(targetElement);
         onElementSelected(selector, { x, y });
+      } else {
+        onElementSelected('', { x, y });
       }
     };
 

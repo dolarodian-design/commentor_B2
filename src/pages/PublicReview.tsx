@@ -184,7 +184,7 @@ export function PublicReview() {
   };
 
   const handleElementSelected = (selector: string, position: { x: number; y: number }) => {
-    setSelectedElement(selector);
+    setSelectedElement(selector || null);
     setNewCommentPosition(position);
     setShowCommentOverlay(true);
     setIsAddingComment(true);
@@ -203,6 +203,8 @@ export function PublicReview() {
 
       if (selectedElement) {
         threadData.dom_selector = { selector: selectedElement };
+      } else {
+        threadData.dom_selector = null;
       }
 
       const { data: thread, error: threadError } = await supabase
@@ -404,19 +406,20 @@ export function PublicReview() {
                 {commentMode !== 'off' && (
                   <div
                     className="absolute inset-0 pointer-events-none z-10"
-                    style={{ backgroundColor: commentMode === 'element' ? 'rgba(0,0,0,0.1)' : 'transparent' }}
+                    style={{ backgroundColor: commentMode === 'element' ? 'rgba(0,0,0,0.05)' : 'transparent' }}
                   >
                     {commentMode === 'element' && (
-                      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-purple-600 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg">
-                        Hover over elements to select them
+                      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg max-w-md text-center">
+                        <div className="font-semibold mb-1">Element Selector Mode</div>
+                        <div className="text-xs opacity-90">Note: Due to browser security, this works on UI overlays. Click anywhere to add a spatial comment.</div>
                       </div>
                     )}
                   </div>
                 )}
 
-                {commentMode === 'element' && (
+                {commentMode === 'element' && !showCommentOverlay && (
                   <ElementSelector
-                    isActive={commentMode === 'element'}
+                    isActive={commentMode === 'element' && !showCommentOverlay}
                     onElementSelected={handleElementSelected}
                     containerRef={iframeContainerRef}
                   />
