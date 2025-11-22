@@ -68,6 +68,16 @@ CommentSync is a collaborative feedback platform that enables teams to annotate,
   - Image preview in comments
   - File download with icons for different file types
   - Support for: images (JPEG, PNG, GIF, WebP), PDFs, Word docs, Excel sheets, text files, videos (MP4, MOV)
+- Screenshot capture:
+  - Automatic page screenshot when testers create comments
+  - Screenshots stored in comment metadata
+  - Full page context preserved for each feedback item
+  - Visual replay of exact page state when feedback was given
+- Page navigation in App Details:
+  - Click page URL pills to view different pages
+  - Automatically switches to corresponding screenshot
+  - Comment pins update based on selected page
+  - Easy navigation between multiple pages with feedback
 
 🚧 **Planned** (Not Yet Implemented)
 - Additional integrations (Notion, GitHub)

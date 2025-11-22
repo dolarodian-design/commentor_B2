@@ -13,6 +13,7 @@ import {
   Save,
   Trash2,
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ElementSelector } from '../components/ElementSelector';
@@ -59,6 +60,7 @@ export function PublicReview() {
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [commentMenuOpen, setCommentMenuOpen] = useState<string | null>(null);
+  const [capturingScreenshot, setCapturingScreenshot] = useState(false);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -196,10 +198,42 @@ export function PublicReview() {
     setIsAddingComment(true);
   };
 
+  const captureScreenshot = async (): Promise<string | null> => {
+    if (!iframeRef.current) return null;
+
+    try {
+      setCapturingScreenshot(true);
+      const iframeDocument = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
+
+      if (!iframeDocument || !iframeDocument.body) {
+        console.warn('Cannot access iframe document for screenshot');
+        return null;
+      }
+
+      const canvas = await html2canvas(iframeDocument.body, {
+        allowTaint: true,
+        useCORS: true,
+        scale: 0.5,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+
+      return canvas.toDataURL('image/jpeg', 0.7);
+    } catch (error) {
+      console.error('Screenshot capture failed:', error);
+      return null;
+    } finally {
+      setCapturingScreenshot(false);
+    }
+  };
+
   const handleCreateComment = async () => {
     if (!newCommentText.trim() || !newCommentPosition || !appId || !user) return;
 
     try {
+      const screenshot = await captureScreenshot();
+      const pageTitle = iframeRef.current?.contentDocument?.title || 'Untitled Page';
+
       const threadData: any = {
         app_id: appId,
         page_url: iframeUrl,
@@ -226,10 +260,19 @@ export function PublicReview() {
       }
 
       if (thread) {
+        const metadata: any = {
+          page_title: pageTitle,
+        };
+
+        if (screenshot) {
+          metadata.screenshot = screenshot;
+        }
+
         const { error: commentError } = await supabase.from('comments').insert({
           thread_id: thread.id,
           author_id: user.id,
           content: newCommentText,
+          metadata,
         });
 
         if (commentError) {
@@ -658,11 +701,13 @@ export function PublicReview() {
                             </button>
                             <button
                               onClick={handleCreateComment}
-                              disabled={!newCommentText.trim()}
+                              disabled={!newCommentText.trim() || capturingScreenshot}
                               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition flex items-center justify-center gap-2"
                             >
                               <Check className="w-5 h-5" />
-                              <span className="font-medium">Create Comment</span>
+                              <span className="font-medium">
+                                {capturingScreenshot ? 'Capturing...' : 'Create Comment'}
+                              </span>
                             </button>
                           </div>
                         ) : (
