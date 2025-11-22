@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Mail, Trash2, Edit2, Plus, Crown, X, Save } from 'lucide-react';
+import { Users, Mail, Trash2, Edit2, Plus, Crown, X, Save, Building2 } from 'lucide-react';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -28,6 +28,9 @@ export function Workspace() {
   const [inviteRole, setInviteRole] = useState<'owner' | 'editor' | 'commenter'>('commenter');
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -105,6 +108,71 @@ export function Workspace() {
     }
   };
 
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  };
+
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newWorkspaceName.trim()) return;
+
+    setCreatingWorkspace(true);
+
+    const slug = generateSlug(newWorkspaceName);
+
+    const { data: existingWorkspace } = await supabase
+      .from('workspaces')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (existingWorkspace) {
+      alert('A workspace with this name already exists. Please choose a different name.');
+      setCreatingWorkspace(false);
+      return;
+    }
+
+    const { data: workspace, error: workspaceError } = await supabase
+      .from('workspaces')
+      .insert({
+        name: newWorkspaceName.trim(),
+        slug,
+        owner_id: user.id,
+      })
+      .select()
+      .single();
+
+    if (workspaceError) {
+      alert('Failed to create workspace');
+      setCreatingWorkspace(false);
+      return;
+    }
+
+    const { error: memberError } = await supabase
+      .from('workspace_members')
+      .insert({
+        workspace_id: workspace.id,
+        user_id: user.id,
+        role: 'admin',
+      });
+
+    if (memberError) {
+      alert('Failed to add you as workspace member');
+      setCreatingWorkspace(false);
+      return;
+    }
+
+    const updatedWorkspaces = [...workspaces, workspace];
+    setWorkspaces(updatedWorkspaces);
+    setCurrentWorkspace(workspace);
+    setNewWorkspaceName('');
+    setShowCreateWorkspace(false);
+    setCreatingWorkspace(false);
+  };
+
   const handleInviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentWorkspace || !inviteEmail.trim()) return;
@@ -175,8 +243,8 @@ export function Workspace() {
   };
 
   const currentUserRole = members.find(m => m.user_id === user?.id)?.role;
-  const isOwner = currentUserRole === 'owner';
-  const canManage = isOwner || currentUserRole === 'editor';
+  const isAdmin = currentUserRole === 'admin';
+  const canManage = isAdmin || currentUserRole === 'moderator';
 
   if (!currentWorkspace) {
     return (
@@ -188,6 +256,22 @@ export function Workspace() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Workspace Management</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Manage your current workspace or create a new one
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreateWorkspace(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+        >
+          <Building2 className="w-4 h-4" />
+          Create Workspace
+        </button>
+      </div>
+
       <div className="bg-white rounded-lg shadow-sm border border-slate-200">
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-start justify-between">
@@ -386,6 +470,63 @@ export function Workspace() {
                 Delete Workspace
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateWorkspace && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Create New Workspace</h3>
+            <p className="text-slate-600 mb-6">
+              Create a new workspace to organize your apps and collaborate with your team.
+            </p>
+            <form onSubmit={handleCreateWorkspace}>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Workspace Name
+                </label>
+                <input
+                  type="text"
+                  value={newWorkspaceName}
+                  onChange={(e) => setNewWorkspaceName(e.target.value)}
+                  placeholder="My Team Workspace"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateWorkspace(false);
+                    setNewWorkspaceName('');
+                  }}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition"
+                  disabled={creatingWorkspace}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2"
+                  disabled={creatingWorkspace}
+                >
+                  {creatingWorkspace ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Building2 className="w-4 h-4" />
+                      Create Workspace
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
