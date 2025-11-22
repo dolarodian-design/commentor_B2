@@ -2,6 +2,9 @@ let isCommentSyncActive = false;
 let selectedElement = null;
 let commentWidget = null;
 let highlightOverlay = null;
+let snapshotOverlay = null;
+let currentSnapshot = null;
+let isInSnapshotMode = false;
 
 function getOptimalSelector(element) {
   if (element.id) {
@@ -74,6 +77,51 @@ function hideHighlight() {
   }
 }
 
+function createSnapshotOverlay(screenshotDataUrl) {
+  if (snapshotOverlay) {
+    snapshotOverlay.remove();
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'commentsync-snapshot-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    z-index: 999996;
+    overflow: auto;
+  `;
+
+  const img = document.createElement('img');
+  img.src = screenshotDataUrl;
+  img.style.cssText = `
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 0;
+  `;
+
+  overlay.appendChild(img);
+  document.body.appendChild(overlay);
+  snapshotOverlay = overlay;
+  isInSnapshotMode = true;
+
+  return overlay;
+}
+
+function removeSnapshotOverlay() {
+  if (snapshotOverlay) {
+    snapshotOverlay.remove();
+    snapshotOverlay = null;
+  }
+  isInSnapshotMode = false;
+  currentSnapshot = null;
+}
+
 function createCommentWidget(x, y, element) {
   if (commentWidget) {
     commentWidget.remove();
@@ -82,9 +130,9 @@ function createCommentWidget(x, y, element) {
   const widget = document.createElement('div');
   widget.id = 'commentsync-widget';
   widget.style.cssText = `
-    position: absolute;
-    top: ${y}px;
-    left: ${x}px;
+    position: fixed;
+    top: ${Math.min(y, window.innerHeight - 250)}px;
+    left: ${Math.min(x, window.innerWidth - 340)}px;
     width: 320px;
     background: white;
     border-radius: 12px;
@@ -127,7 +175,15 @@ function createCommentWidget(x, y, element) {
   widget.querySelector('#commentsync-cancel').onclick = closeWidget;
   widget.querySelector('#commentsync-submit').onclick = () => submitComment(element, textarea.value);
 
+  document.addEventListener('keydown', handleEscapeKey);
+
   return widget;
+}
+
+function handleEscapeKey(e) {
+  if (e.key === 'Escape') {
+    closeWidget();
+  }
 }
 
 function closeWidget() {
@@ -137,6 +193,8 @@ function closeWidget() {
   }
   hideHighlight();
   selectedElement = null;
+  removeSnapshotOverlay();
+  document.removeEventListener('keydown', handleEscapeKey);
 }
 
 async function submitComment(element, text) {
@@ -147,29 +205,27 @@ async function submitComment(element, text) {
 
   const rect = element.getBoundingClientRect();
 
-  chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }, async (response) => {
-    const commentData = {
-      domSelector: getOptimalSelector(element),
-      text: text.trim(),
-      x: rect.left + window.scrollX,
-      y: rect.top + window.scrollY,
-      screenshot: response.screenshot,
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight
-    };
+  const commentData = {
+    domSelector: getOptimalSelector(element),
+    text: text.trim(),
+    x: rect.left + window.scrollX,
+    y: rect.top + window.scrollY,
+    screenshot: currentSnapshot,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight
+  };
 
-    chrome.runtime.sendMessage(
-      { type: 'SAVE_COMMENT', data: commentData },
-      (response) => {
-        if (response.success) {
-          showNotification('Comment saved successfully!', 'success');
-          closeWidget();
-        } else {
-          showNotification('Failed to save comment: ' + response.error, 'error');
-        }
+  chrome.runtime.sendMessage(
+    { type: 'SAVE_COMMENT', data: commentData },
+    (response) => {
+      if (response.success) {
+        showNotification('Comment saved successfully!', 'success');
+        closeWidget();
+      } else {
+        showNotification('Failed to save comment: ' + response.error, 'error');
       }
-    );
-  });
+    }
+  );
 }
 
 function showNotification(message, type) {
@@ -198,8 +254,29 @@ function showNotification(message, type) {
   }, 3000);
 }
 
+function handleSnapshotClick(e) {
+  if (!isInSnapshotMode) return;
+
+  if (e.target.closest('#commentsync-widget')) {
+    return;
+  }
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (commentWidget) {
+    return;
+  }
+
+  commentWidget = createCommentWidget(
+    e.clientX + 10,
+    e.clientY + 10,
+    document.body
+  );
+}
+
 function handleElementClick(e) {
-  if (!isCommentSyncActive) return;
+  if (!isCommentSyncActive || isInSnapshotMode) return;
 
   if (e.target.closest('#commentsync-widget') ||
       e.target.closest('#commentsync-indicator') ||
@@ -211,17 +288,22 @@ function handleElementClick(e) {
   e.stopPropagation();
 
   selectedElement = e.target;
-  const rect = e.target.getBoundingClientRect();
 
-  commentWidget = createCommentWidget(
-    e.clientX + 10,
-    e.clientY + 10,
-    e.target
-  );
+  chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }, async (response) => {
+    currentSnapshot = response.screenshot;
+    createSnapshotOverlay(currentSnapshot);
+
+    const rect = e.target.getBoundingClientRect();
+    commentWidget = createCommentWidget(
+      e.clientX + 10,
+      e.clientY + 10,
+      e.target
+    );
+  });
 }
 
 function handleMouseOver(e) {
-  if (!isCommentSyncActive || commentWidget) return;
+  if (!isCommentSyncActive || commentWidget || isInSnapshotMode) return;
 
   if (e.target.closest('#commentsync-widget') ||
       e.target.closest('#commentsync-indicator') ||
@@ -233,7 +315,7 @@ function handleMouseOver(e) {
 }
 
 function handleMouseOut(e) {
-  if (!isCommentSyncActive || commentWidget) return;
+  if (!isCommentSyncActive || commentWidget || isInSnapshotMode) return;
   hideHighlight();
 }
 
@@ -297,6 +379,8 @@ function stopSession() {
   closeWidget();
   chrome.runtime.sendMessage({ type: 'STOP_SESSION' });
 }
+
+document.addEventListener('click', handleSnapshotClick, true);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING') {
