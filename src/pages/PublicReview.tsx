@@ -9,6 +9,9 @@ import {
   Check,
   Target,
   MousePointer2,
+  Edit,
+  Save,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -53,6 +56,9 @@ export function PublicReview() {
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const iframeContainerRef = useRef<HTMLDivElement>(null);
+  const [editingComment, setEditingComment] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [commentMenuOpen, setCommentMenuOpen] = useState<string | null>(null);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -264,6 +270,69 @@ export function PublicReview() {
       await fetchThreads();
     } catch (error) {
       console.error('Error sending reply:', error);
+    }
+  };
+
+  const handleEditComment = (comment: Comment & { author: any }) => {
+    setEditingComment(comment.id);
+    setEditText(comment.content);
+    setCommentMenuOpen(null);
+  };
+
+  const handleSaveEdit = async (commentId: string) => {
+    if (!editText.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .update({
+          content: editText,
+          edited_at: new Date().toISOString()
+        })
+        .eq('id', commentId);
+
+      if (error) throw error;
+
+      await fetchThreads();
+      setEditingComment(null);
+      setEditText('');
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      alert('Failed to update comment');
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string, threadId: string) => {
+    if (!confirm('Are you sure you want to delete this comment?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId);
+
+      if (error) throw error;
+
+      const { data: remainingComments } = await supabase
+        .from('comments')
+        .select('id')
+        .eq('thread_id', threadId);
+
+      if (!remainingComments || remainingComments.length === 0) {
+        await supabase
+          .from('threads')
+          .delete()
+          .eq('id', threadId);
+
+        setShowCommentOverlay(false);
+        setSelectedThread(null);
+      }
+
+      await fetchThreads();
+      setCommentMenuOpen(null);
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment');
     }
   };
 
@@ -506,15 +575,71 @@ export function PublicReview() {
                                       </p>
                                       <p className="text-xs text-slate-400">
                                         {new Date(comment.created_at).toLocaleString()}
+                                        {comment.edited_at && ' (edited)'}
                                       </p>
                                     </div>
-                                    <button className="p-1 hover:bg-slate-600 rounded transition">
-                                      <MoreVertical className="w-4 h-4 text-slate-400" />
-                                    </button>
+                                    {comment.author_id === user?.id && (
+                                      <div className="relative">
+                                        <button
+                                          onClick={() => setCommentMenuOpen(commentMenuOpen === comment.id ? null : comment.id)}
+                                          className="p-1 hover:bg-slate-600 rounded transition"
+                                        >
+                                          <MoreVertical className="w-4 h-4 text-slate-400" />
+                                        </button>
+                                        {commentMenuOpen === comment.id && (
+                                          <div className="absolute right-0 mt-1 w-32 bg-slate-800 rounded-lg shadow-xl border border-slate-700 py-1 z-50">
+                                            <button
+                                              onClick={() => handleEditComment(comment)}
+                                              className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+                                            >
+                                              <Edit className="w-3.5 h-3.5" />
+                                              Edit
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteComment(comment.id, comment.thread_id)}
+                                              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                              Delete
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
-                                  <p className="text-sm text-slate-200 leading-relaxed">
-                                    {comment.content}
-                                  </p>
+                                  {editingComment === comment.id ? (
+                                    <div className="space-y-2">
+                                      <textarea
+                                        value={editText}
+                                        onChange={(e) => setEditText(e.target.value)}
+                                        className="w-full bg-slate-600 text-slate-200 rounded-lg p-2 text-sm border border-slate-500 focus:border-blue-500 focus:outline-none resize-none"
+                                        rows={3}
+                                        autoFocus
+                                      />
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => handleSaveEdit(comment.id)}
+                                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg flex items-center gap-1.5 transition"
+                                        >
+                                          <Save className="w-3.5 h-3.5" />
+                                          Save
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditingComment(null);
+                                            setEditText('');
+                                          }}
+                                          className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-slate-300 text-xs rounded-lg transition"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-slate-200 leading-relaxed">
+                                      {comment.content}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             </div>
