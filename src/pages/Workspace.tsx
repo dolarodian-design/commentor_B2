@@ -25,7 +25,7 @@ export function Workspace() {
   const [isEditing, setIsEditing] = useState(false);
   const [workspaceName, setWorkspaceName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'owner' | 'editor' | 'commenter'>('commenter');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'moderator' | 'commenter' | 'viewer'>('commenter');
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
@@ -304,7 +304,7 @@ export function Workspace() {
               ) : (
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-bold text-slate-900">{currentWorkspace.name}</h1>
-                  {isOwner && (
+                  {isAdmin && (
                     <button
                       onClick={() => setIsEditing(true)}
                       className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition"
@@ -318,7 +318,7 @@ export function Workspace() {
                 Manage your workspace and team members
               </p>
             </div>
-            {isOwner && (
+            {isAdmin && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition flex items-center gap-2"
@@ -366,9 +366,10 @@ export function Workspace() {
                   onChange={(e) => setInviteRole(e.target.value as any)}
                   className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
+                  <option value="viewer">Viewer</option>
                   <option value="commenter">Commenter</option>
-                  <option value="editor">Editor</option>
-                  {isOwner && <option value="owner">Owner</option>}
+                  <option value="moderator">Moderator</option>
+                  {isAdmin && <option value="admin">Admin</option>}
                 </select>
                 <button
                   type="submit"
@@ -423,9 +424,10 @@ export function Workspace() {
                           onChange={(e) => handleUpdateMemberRole(member.id, e.target.value)}
                           className="px-3 py-1 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
+                          <option value="viewer">Viewer</option>
                           <option value="commenter">Commenter</option>
-                          <option value="editor">Editor</option>
-                          {isOwner && <option value="owner">Owner</option>}
+                          <option value="moderator">Moderator</option>
+                          {isAdmin && <option value="admin">Admin</option>}
                         </select>
                       ) : (
                         <span className="px-3 py-1 text-sm bg-slate-200 text-slate-700 rounded-lg capitalize">
