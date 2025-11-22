@@ -132,13 +132,22 @@ export function AppDetails() {
       updateCommentPins(pageThreads);
 
       const threadWithScreenshot = pageThreads.find(t => {
-        const metadata = t.comments[0]?.metadata;
-        return metadata && typeof metadata === 'object' && 'screenshot' in metadata;
+        const firstComment = t.comments[0];
+        if (!firstComment?.metadata) return false;
+        const metadata = typeof firstComment.metadata === 'string'
+          ? JSON.parse(firstComment.metadata)
+          : firstComment.metadata;
+        return metadata && 'screenshot' in metadata;
       });
 
       if (threadWithScreenshot) {
-        const metadata = threadWithScreenshot.comments[0].metadata as any;
-        setScreenshotForPage(metadata.screenshot || null);
+        const firstComment = threadWithScreenshot.comments[0];
+        const metadata = typeof firstComment.metadata === 'string'
+          ? JSON.parse(firstComment.metadata)
+          : firstComment.metadata;
+        setScreenshotForPage(metadata?.screenshot || null);
+      } else {
+        setScreenshotForPage(null);
       }
     }
   }, [selectedPageUrl, threads]);
@@ -523,66 +532,104 @@ export function AppDetails() {
       <div className="flex flex-1 overflow-hidden relative">
         <div className="flex-1 bg-slate-900 overflow-hidden flex flex-col">
           {threads.length > 0 && (
-            <div className="bg-slate-800/50 border-b border-slate-700 px-4 py-2 flex items-center gap-3 overflow-x-auto">
-              <span className="text-xs text-slate-400 whitespace-nowrap">Pages:</span>
-              {Array.from(new Set(threads.map(t => t.page_url))).map((pageUrl) => (
-                <button
-                  key={pageUrl}
-                  onClick={() => setSelectedPageUrl(pageUrl)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
-                    selectedPageUrl === pageUrl
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  }`}
-                >
-                  {new URL(pageUrl).pathname || '/'}
-                </button>
-              ))}
+            <div className="bg-slate-800/50 border-b border-slate-700 px-4 py-3 flex items-center gap-3 overflow-x-auto">
+              <span className="text-xs text-slate-400 whitespace-nowrap font-medium">Pages with Feedback:</span>
+              {Array.from(new Set(threads.map(t => t.page_url))).map((pageUrl) => {
+                const pageThreads = threads.filter(t => t.page_url === pageUrl);
+                const url = new URL(pageUrl);
+                const displayPath = url.pathname === '/' ? url.hostname : url.pathname;
+                const pageTitle = pageThreads[0]?.comments[0]?.metadata
+                  ? (typeof pageThreads[0].comments[0].metadata === 'string'
+                      ? JSON.parse(pageThreads[0].comments[0].metadata).page_title
+                      : pageThreads[0].comments[0].metadata.page_title)
+                  : null;
+
+                return (
+                  <button
+                    key={pageUrl}
+                    onClick={() => setSelectedPageUrl(pageUrl)}
+                    className={`px-3 py-2 rounded-lg text-xs font-medium transition whitespace-nowrap flex items-center gap-2 ${
+                      selectedPageUrl === pageUrl
+                        ? 'bg-blue-600 text-white shadow-lg'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                    title={pageUrl}
+                  >
+                    <span>{pageTitle || displayPath}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+                      selectedPageUrl === pageUrl
+                        ? 'bg-white/20'
+                        : 'bg-slate-600'
+                    }`}>
+                      {pageThreads.length}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
           <div className="flex-1 overflow-auto relative bg-slate-900">
-            {screenshotForPage ? (
-              <div className="relative inline-block min-w-full">
-                <img
-                  src={screenshotForPage}
-                  alt="Page screenshot"
-                  className="w-full h-auto"
-                />
+            {threads.length > 0 && selectedPageUrl ? (
+              screenshotForPage ? (
+                <div className="relative inline-block min-w-full">
+                  <img
+                    src={screenshotForPage}
+                    alt="Page screenshot"
+                    className="w-full h-auto shadow-2xl"
+                  />
 
-                {commentPins.map((pin) => {
-                  const thread = threads.find(t => t.id === pin.threadId);
-                  if (!thread) return null;
-                  const isSelected = selectedThread?.id === thread.id && showCommentOverlay;
+                  {commentPins.map((pin) => {
+                    const thread = threads.find(t => t.id === pin.threadId);
+                    if (!thread) return null;
+                    const isSelected = selectedThread?.id === thread.id && showCommentOverlay;
 
-                  return (
-                    <button
-                      key={pin.threadId}
-                      onClick={() => handleThreadClick(thread)}
-                      className={`absolute w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-xl transition-all hover:scale-110 border-2 border-white ${
-                        isSelected
-                          ? 'bg-blue-600 scale-110 ring-4 ring-blue-300'
-                          : thread.status === 'resolved'
-                          ? 'bg-green-500 hover:bg-green-600'
-                          : 'bg-red-500 hover:bg-red-600'
-                      }`}
-                      style={{
-                        left: `${pin.x}px`,
-                        top: `${pin.y}px`,
-                        transform: 'translate(-50%, -50%)'
-                      }}
-                    >
-                      {thread.comments.length}
-                    </button>
-                  );
-                })}
-              </div>
+                    return (
+                      <button
+                        key={pin.threadId}
+                        onClick={() => handleThreadClick(thread)}
+                        className={`absolute w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-xl transition-all hover:scale-110 border-2 border-white ${
+                          isSelected
+                            ? 'bg-blue-600 scale-110 ring-4 ring-blue-300'
+                            : thread.status === 'resolved'
+                            ? 'bg-green-500 hover:bg-green-600'
+                            : 'bg-red-500 hover:bg-red-600'
+                        }`}
+                        style={{
+                          left: `${pin.x}px`,
+                          top: `${pin.y}px`,
+                          transform: 'translate(-50%, -50%)'
+                        }}
+                        title={`${thread.comments.length} comment${thread.comments.length !== 1 ? 's' : ''} - ${thread.status}`}
+                      >
+                        {thread.comments.length}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-slate-400">
+                  <div className="text-center max-w-md px-4">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-slate-800 rounded-full flex items-center justify-center">
+                      <MessageSquare className="w-8 h-8 text-slate-600" />
+                    </div>
+                    <p className="text-lg font-medium text-slate-300 mb-2">Screenshot Not Available</p>
+                    <p className="text-sm text-slate-500">
+                      This page has comments but no screenshot was captured. The comments are still available in the sidebar.
+                    </p>
+                  </div>
+                </div>
+              )
             ) : (
               <div className="flex items-center justify-center h-full text-slate-400">
-                <div className="text-center">
-                  <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>No feedback yet</p>
-                  <p className="text-sm text-slate-500 mt-2">Share the review URL to collect feedback</p>
+                <div className="text-center max-w-md px-4">
+                  <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-500/10 to-blue-600/10 rounded-full flex items-center justify-center">
+                    <MessageSquare className="w-10 h-10 text-blue-500/50" />
+                  </div>
+                  <p className="text-xl font-semibold text-slate-300 mb-3">No Feedback Yet</p>
+                  <p className="text-sm text-slate-500 leading-relaxed">
+                    Share the review URL with your testers to start collecting feedback. Comments will appear here with screenshots showing exactly where issues were found.
+                  </p>
                 </div>
               </div>
             )}
