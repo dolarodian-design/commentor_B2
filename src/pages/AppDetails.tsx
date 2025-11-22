@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
-  Copy,
   Check,
   MessageSquare,
   X,
@@ -15,7 +14,6 @@ import {
   UserPlus,
   Mail,
   ExternalLink,
-  AlertCircle,
   Trash2,
   CheckCircle,
   RefreshCw,
@@ -56,7 +54,6 @@ export function AppDetails() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [selectedThread, setSelectedThread] = useState<ThreadWithComments | null>(null);
-  const [iframeUrl, setIframeUrl] = useState('');
   const [commentPins, setCommentPins] = useState<CommentPin[]>([]);
   const [replyText, setReplyText] = useState('');
   const [showCommentOverlay, setShowCommentOverlay] = useState(false);
@@ -64,14 +61,14 @@ export function AppDetails() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteSending, setInviteSending] = useState(false);
   const [isCommentsSidebarCollapsed, setIsCommentsSidebarCollapsed] = useState(false);
-  const [iframeError, setIframeError] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingThread, setDeletingThread] = useState<ThreadWithComments | null>(null);
   const [syncingToJira, setSyncingToJira] = useState(false);
   const [jiraSyncStatus, setJiraSyncStatus] = useState<{threadId: string, issueKey: string} | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [selectedPageUrl, setSelectedPageUrl] = useState<string | null>(null);
+  const [screenshotForPage, setScreenshotForPage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -121,18 +118,30 @@ export function AppDetails() {
   }, [id]);
 
   useEffect(() => {
-    if (app) {
-      let url = app.base_url;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
-      }
-      setIframeUrl(url);
-
-      if (threads.length > 0) {
-        updateCommentPins(threads);
+    if (threads.length > 0) {
+      const uniquePages = Array.from(new Set(threads.map(t => t.page_url)));
+      if (!selectedPageUrl && uniquePages.length > 0) {
+        setSelectedPageUrl(uniquePages[0]);
       }
     }
-  }, [app, threads]);
+  }, [threads]);
+
+  useEffect(() => {
+    if (selectedPageUrl && threads.length > 0) {
+      const pageThreads = threads.filter(t => t.page_url === selectedPageUrl);
+      updateCommentPins(pageThreads);
+
+      const threadWithScreenshot = pageThreads.find(t => {
+        const metadata = t.comments[0]?.metadata;
+        return metadata && typeof metadata === 'object' && 'screenshot' in metadata;
+      });
+
+      if (threadWithScreenshot) {
+        const metadata = threadWithScreenshot.comments[0].metadata as any;
+        setScreenshotForPage(metadata.screenshot || null);
+      }
+    }
+  }, [selectedPageUrl, threads]);
 
   const updateCommentPins = (threadsData: ThreadWithComments[]) => {
     const pins: CommentPin[] = threadsData
@@ -416,27 +425,6 @@ export function AppDetails() {
         </div>
 
         <div className="flex items-center gap-3">
-          <a
-            href={iframeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-2 py-1.5 bg-white/10 backdrop-blur-md text-slate-200 rounded-lg hover:bg-white/20 transition text-sm border border-white/10"
-            title="Open in new tab"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </a>
-
-          {iframeError && (
-            <button
-              onClick={() => setIframeError(true)}
-              className="flex items-center gap-2 px-2 py-1.5 bg-amber-600/20 text-amber-400 rounded-lg hover:bg-amber-600/30 transition text-sm border border-amber-600/30"
-              title="Website cannot be previewed"
-            >
-              <AlertCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">CSP Blocked</span>
-            </button>
-          )}
-
           <button
             onClick={() => setShowInviteModal(true)}
             className="flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-md text-slate-200 rounded-lg hover:bg-white/20 transition text-sm border border-white/10"
@@ -533,58 +521,33 @@ export function AppDetails() {
       )}
 
       <div className="flex flex-1 overflow-hidden relative">
-        <div className="flex-1 bg-white overflow-hidden">
-            {iframeUrl ? (
-              <>
-                {iframeError && (
-                  <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-sm flex items-center justify-center z-10">
-                    <div className="bg-slate-800 rounded-2xl p-8 max-w-lg mx-4 border border-slate-700">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center">
-                          <MessageSquare className="w-6 h-6 text-amber-500" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold text-white">Website Blocking Preview</h3>
-                          <p className="text-sm text-slate-400">CSP Policy Restriction</p>
-                        </div>
-                      </div>
-                      <div className="space-y-3 text-sm text-slate-300">
-                        <p>
-                          This website has security policies that prevent it from being displayed in an iframe.
-                        </p>
-                        <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
-                          <p className="text-xs text-slate-400 mb-1">Blocked URL:</p>
-                          <p className="text-blue-400 break-all">{iframeUrl}</p>
-                        </div>
-                        <p className="text-slate-400">
-                          <strong className="text-white">Workaround:</strong> Open the website in a new tab to review it, then return here to view and manage comments.
-                        </p>
-                      </div>
-                      <div className="flex gap-3 mt-6">
-                        <button
-                          onClick={() => setIframeError(false)}
-                          className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
-                        >
-                          Dismiss
-                        </button>
-                        <a
-                          href={iframeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-center"
-                        >
-                          Open in New Tab
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <iframe
-                  ref={iframeRef}
-                  src={iframeUrl}
-                  className="w-full h-full"
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-                  onError={() => setIframeError(true)}
+        <div className="flex-1 bg-slate-900 overflow-hidden flex flex-col">
+          {threads.length > 0 && (
+            <div className="bg-slate-800/50 border-b border-slate-700 px-4 py-2 flex items-center gap-3 overflow-x-auto">
+              <span className="text-xs text-slate-400 whitespace-nowrap">Pages:</span>
+              {Array.from(new Set(threads.map(t => t.page_url))).map((pageUrl) => (
+                <button
+                  key={pageUrl}
+                  onClick={() => setSelectedPageUrl(pageUrl)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
+                    selectedPageUrl === pageUrl
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  {new URL(pageUrl).pathname || '/'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex-1 overflow-auto relative bg-slate-900">
+            {screenshotForPage ? (
+              <div className="relative inline-block min-w-full">
+                <img
+                  src={screenshotForPage}
+                  alt="Page screenshot"
+                  className="w-full h-auto"
                 />
 
                 {commentPins.map((pin) => {
@@ -596,12 +559,12 @@ export function AppDetails() {
                     <button
                       key={pin.threadId}
                       onClick={() => handleThreadClick(thread)}
-                      className={`absolute w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg transition-all hover:scale-110 ${
+                      className={`absolute w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-xl transition-all hover:scale-110 border-2 border-white ${
                         isSelected
                           ? 'bg-blue-600 scale-110 ring-4 ring-blue-300'
                           : thread.status === 'resolved'
                           ? 'bg-green-500 hover:bg-green-600'
-                          : 'bg-amber-500 hover:bg-amber-600'
+                          : 'bg-red-500 hover:bg-red-600'
                       }`}
                       style={{
                         left: `${pin.x}px`,
@@ -613,8 +576,19 @@ export function AppDetails() {
                     </button>
                   );
                 })}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-400">
+                <div className="text-center">
+                  <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>No feedback yet</p>
+                  <p className="text-sm text-slate-500 mt-2">Share the review URL to collect feedback</p>
+                </div>
+              </div>
+            )}
+          </div>
 
-                {showCommentOverlay && selectedThread && (
+          {showCommentOverlay && selectedThread && (
                   <div className="absolute inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-8 animate-in fade-in duration-200">
                     <div className="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col animate-in slide-in-from-bottom-4 duration-300">
                       <div className="flex items-center justify-between p-6 border-b border-slate-700">
@@ -800,15 +774,6 @@ export function AppDetails() {
                     </div>
                   </div>
                 )}
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-full text-slate-400">
-                <div className="text-center">
-                  <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>Enter a URL above to start reviewing</p>
-                </div>
-              </div>
-            )}
         </div>
 
         <div className={`absolute top-0 right-0 bottom-0 bg-slate-800 border-l border-slate-700 flex flex-col transition-all duration-300 shadow-2xl ${
