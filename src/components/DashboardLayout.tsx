@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   Share2,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWorkspace } from '../contexts/WorkspaceContext';
@@ -44,6 +45,7 @@ export function DashboardLayout() {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Apps', href: '/dashboard/apps', icon: FolderOpen },
     { name: 'Shared With Me', href: '/dashboard/shared', icon: Share2 },
+    { name: 'Workspace', href: '/dashboard/workspace', icon: Building2 },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
 

@@ -13,6 +13,7 @@ import { AppSettings } from './pages/AppSettings';
 import { Settings } from './pages/Settings';
 import { PublicReview } from './pages/PublicReview';
 import { SharedWithMe } from './pages/SharedWithMe';
+import { Workspace } from './pages/Workspace';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -115,6 +116,7 @@ function App() {
               <Route path="apps/:id" element={<AppDetails />} />
               <Route path="apps/:id/settings" element={<AppSettings />} />
               <Route path="shared" element={<SharedWithMe />} />
+              <Route path="workspace" element={<Workspace />} />
               <Route path="settings" element={<Settings />} />
             </Route>
             <Route path="/" element={<RootRedirect />} />
