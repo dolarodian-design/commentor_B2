@@ -9,6 +9,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Apps } from './pages/Apps';
 import { NewApp } from './pages/NewApp';
 import { AppDetails } from './pages/AppDetails';
+import { AppSettings } from './pages/AppSettings';
 import { Settings } from './pages/Settings';
 import { PublicReview } from './pages/PublicReview';
 import { SharedWithMe } from './pages/SharedWithMe';
@@ -112,6 +113,7 @@ function App() {
               <Route path="apps" element={<Apps />} />
               <Route path="apps/new" element={<NewApp />} />
               <Route path="apps/:id" element={<AppDetails />} />
+              <Route path="apps/:id/settings" element={<AppSettings />} />
               <Route path="shared" element={<SharedWithMe />} />
               <Route path="settings" element={<Settings />} />
             </Route>
