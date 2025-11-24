@@ -110,13 +110,19 @@ function createCommentWidget(x, y, element, existingThread = null) {
 
   if (existingThread) {
     widget.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #1e293b;">Thread</h3>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button id="commentsync-toggle-status" style="padding: 6px 14px; border: 2px solid ${existingThread.status === 'resolved' ? '#10B981' : '#F59E0B'}; background: ${existingThread.status === 'resolved' ? '#ECFDF5' : '#FEF3C7'}; color: ${existingThread.status === 'resolved' ? '#059669' : '#D97706'}; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-            ${existingThread.status === 'resolved' ? '✓ Resolved' : '○ Open'}
-          </button>
-          <button id="commentsync-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b; padding: 0; width: 24px; height: 24px;">×</button>
+      <div style="margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #1e293b;">Comment Thread</h3>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="commentsync-toggle-status" style="padding: 6px 14px; border: 2px solid ${existingThread.status === 'resolved' ? '#10B981' : '#F59E0B'}; background: ${existingThread.status === 'resolved' ? '#ECFDF5' : '#FEF3C7'}; color: ${existingThread.status === 'resolved' ? '#059669' : '#D97706'}; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+              ${existingThread.status === 'resolved' ? '✓ Resolved' : '○ Open'}
+            </button>
+            <button id="commentsync-delete-thread" style="background: #fee; border: 1px solid #fcc; color: #c33; padding: 6px 10px; border-radius: 6px; font-size: 18px; cursor: pointer; line-height: 1;">🗑️</button>
+            <button id="commentsync-close" style="background: none; border: none; font-size: 22px; cursor: pointer; color: #64748b; padding: 0; width: 28px; height: 28px; line-height: 1;">×</button>
+          </div>
+        </div>
+        <div style="font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+          ${existingThread.page_url}
         </div>
       </div>
       <div id="comments-container" style="overflow-y: auto; max-height: 350px; margin-bottom: 12px; padding-right: 8px;">
@@ -146,12 +152,17 @@ function createCommentWidget(x, y, element, existingThread = null) {
     `;
   } else {
     widget.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #1e293b;">Add Comment</h3>
-        <button id="commentsync-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b; padding: 0; width: 24px; height: 24px;">×</button>
-      </div>
-      <div style="margin-bottom: 8px; padding: 8px; background: #f1f5f9; border-radius: 6px; font-size: 11px; color: #475569; word-break: break-all;">
-        ${getOptimalSelector(element)}
+      <div style="margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #1e293b;">Add Comment</h3>
+          <button id="commentsync-close" style="background: none; border: none; font-size: 22px; cursor: pointer; color: #64748b; padding: 0; width: 28px; height: 28px; line-height: 1;">×</button>
+        </div>
+        <div style="font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+          ${window.location.href}
+        </div>
+        <div style="margin-top: 8px; padding: 8px; background: #f1f5f9; border-radius: 6px; font-size: 11px; color: #475569; word-break: break-all;">
+          ${getOptimalSelector(element)}
+        </div>
       </div>
       <textarea id="commentsync-textarea"
         placeholder="Describe the issue or feedback..."
@@ -216,6 +227,15 @@ function createCommentWidget(x, y, element, existingThread = null) {
       submitReply(existingThread.id, textarea.value, file);
     };
     widget.querySelector('#commentsync-toggle-status').onclick = () => toggleThreadStatus(existingThread);
+
+    const deleteThreadBtn = widget.querySelector('#commentsync-delete-thread');
+    if (deleteThreadBtn) {
+      deleteThreadBtn.onclick = () => {
+        if (confirm('Delete this entire thread and all comments?')) {
+          deleteThread(existingThread.id);
+        }
+      };
+    }
 
     setupCommentActions(existingThread);
   } else {
@@ -481,6 +501,21 @@ async function deleteComment(commentId, threadId) {
         loadThreads();
       } else {
         showNotification('Failed to delete comment', 'error');
+      }
+    }
+  );
+}
+
+async function deleteThread(threadId) {
+  chrome.runtime.sendMessage(
+    { type: 'DELETE_THREAD', threadId },
+    (response) => {
+      if (response.success) {
+        showNotification('Thread deleted!', 'success');
+        closeWidget();
+        loadThreads();
+      } else {
+        showNotification('Failed to delete thread', 'error');
       }
     }
   );

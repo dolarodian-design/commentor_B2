@@ -54,6 +54,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'DELETE_THREAD') {
+    handleDeleteThread(message.threadId)
+      .then(() => sendResponse({ success: true }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === 'UPDATE_THREAD_STATUS') {
     handleUpdateThreadStatus(message.threadId, message.status)
       .then(() => sendResponse({ success: true }))
@@ -274,6 +281,20 @@ async function handleDeleteComment(commentId, threadId) {
         headers: { ...headers, 'Prefer': 'return=minimal' }
       });
     }
+  }
+}
+
+async function handleDeleteThread(threadId) {
+  const { headers, supabaseUrl } = await getAuthHeaders();
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/threads?id=eq.${threadId}`, {
+    method: 'DELETE',
+    headers: { ...headers, 'Prefer': 'return=minimal' }
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to delete thread: ${errorText}`);
   }
 }
 
