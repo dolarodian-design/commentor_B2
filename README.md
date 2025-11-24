@@ -45,6 +45,11 @@ CommentSync is a collaborative feedback platform that enables teams to annotate,
 - Share URL and Invite functionality (no manual URL input)
 - Thread resolution toggle (mark as resolved/reopen)
 - Thread deletion with confirmation modal
+- Redesigned widget header:
+  - All controls consolidated in header (status, delete, close)
+  - URL displayed on separate line with smart truncation
+  - Comment dropdown menu with bounds checking
+  - Spatial positioning of widgets near comment pins
 - App card dropdown menu with actions:
   - Activate/Deactivate apps
   - Quick access to app settings
@@ -147,12 +152,15 @@ npm run build
 - Navigate to App Details in dashboard
 - See iframe with all comment pins overlaid
 - Click any pin to view full conversation thread
+- Widget opens spatially near the pin location
 - Right sidebar shows latest comments for quick filtering
 - Reply to comments and manage threads:
-  - Click the status badge to toggle between Open/Resolved
-  - Click trash icon to delete thread (with confirmation)
-  - Resolved threads show with green badges
-  - Open threads show with amber badges
+  - Click the status badge (○ Open / ✓ Resolved) in header to toggle
+  - Click trash icon (🗑️) in header to delete entire thread
+  - All controls (status, delete, close) are in the widget header
+  - URL shown below header with smart truncation
+  - Resolved threads show with green status badges
+  - Open threads show with amber status badges
 
 #### 6. Configure Jira Integration (Optional)
 - Navigate to Settings > Integrations tab
