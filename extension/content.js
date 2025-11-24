@@ -113,8 +113,8 @@ function createCommentWidget(x, y, element, existingThread = null) {
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #1e293b;">Thread</h3>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <button id="commentsync-toggle-status" style="padding: 4px 12px; border: 1px solid ${existingThread.status === 'resolved' ? '#10B981' : '#F59E0B'}; background: ${existingThread.status === 'resolved' ? '#ECFDF5' : '#FEF3C7'}; color: ${existingThread.status === 'resolved' ? '#059669' : '#D97706'}; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer;">
-            ${existingThread.status === 'resolved' ? '✓ Resolved' : 'Open'}
+          <button id="commentsync-toggle-status" style="padding: 6px 14px; border: 2px solid ${existingThread.status === 'resolved' ? '#10B981' : '#F59E0B'}; background: ${existingThread.status === 'resolved' ? '#ECFDF5' : '#FEF3C7'}; color: ${existingThread.status === 'resolved' ? '#059669' : '#D97706'}; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            ${existingThread.status === 'resolved' ? '✓ Resolved' : '○ Open'}
           </button>
           <button id="commentsync-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b; padding: 0; width: 24px; height: 24px;">×</button>
         </div>
@@ -313,15 +313,18 @@ function showCommentMenu(commentId, buttonElement, threadId) {
   menu.className = 'comment-menu-dropdown';
   const rect = buttonElement.getBoundingClientRect();
 
+  const menuTop = Math.min(rect.bottom + 5, window.innerHeight - 120);
+  const menuLeft = Math.max(10, rect.right - 120);
+
   menu.style.cssText = `
     position: fixed;
-    top: ${rect.bottom + 5}px;
-    right: ${window.innerWidth - rect.right}px;
+    top: ${menuTop}px;
+    left: ${menuLeft}px;
     background: white;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     z-index: 10000000;
-    overflow: hidden;
+    overflow: visible;
     min-width: 120px;
   `;
 
@@ -654,7 +657,9 @@ function createCommentPins() {
     pin.onclick = (e) => {
       e.stopPropagation();
       const rect = pin.getBoundingClientRect();
-      commentWidget = createCommentWidget(rect.right + 10, rect.top, document.body, thread);
+      const widgetX = Math.min(rect.right + 10, window.innerWidth - 400);
+      const widgetY = Math.max(10, Math.min(rect.top, window.innerHeight - 560));
+      commentWidget = createCommentWidget(widgetX, widgetY, document.body, thread);
     };
 
     pin.onmouseenter = () => {
