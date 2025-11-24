@@ -7,6 +7,12 @@ let threadsData = [];
 let threadSidebar = null;
 let activeSession = null;
 let currentAppId = null;
+let currentUserId = null;
+let editingCommentId = null;
+
+chrome.storage.local.get('userId', (result) => {
+  currentUserId = result.userId;
+});
 
 function getOptimalSelector(element) {
   if (element.id) {
@@ -90,8 +96,8 @@ function createCommentWidget(x, y, element, existingThread = null) {
     position: absolute;
     top: ${y}px;
     left: ${x}px;
-    width: 360px;
-    max-height: 500px;
+    width: 380px;
+    max-height: 550px;
     background: white;
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
@@ -113,30 +119,29 @@ function createCommentWidget(x, y, element, existingThread = null) {
           <button id="commentsync-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b; padding: 0; width: 24px; height: 24px;">×</button>
         </div>
       </div>
-      <div style="overflow-y: auto; max-height: 300px; margin-bottom: 12px; padding-right: 8px;">
-        ${existingThread.comments.map(comment => `
-          <div style="margin-bottom: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #3B82F6;">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
-              <div style="font-size: 12px; font-weight: 600; color: #1e293b;">${comment.author.full_name || comment.author.email}</div>
-              <div style="font-size: 10px; color: #64748b;">${formatDate(comment.created_at)}</div>
-            </div>
-            <div style="font-size: 13px; color: #475569; white-space: pre-wrap;">${escapeHtml(comment.content)}</div>
-          </div>
-        `).join('')}
+      <div id="comments-container" style="overflow-y: auto; max-height: 350px; margin-bottom: 12px; padding-right: 8px;">
+        ${existingThread.comments.map(comment => renderComment(comment, existingThread.id)).join('')}
       </div>
-      <textarea id="commentsync-textarea"
-        placeholder="Add a reply..."
-        style="width: 100%; height: 60px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; resize: none; font-family: inherit; margin-bottom: 12px; box-sizing: border-box;"
-      ></textarea>
-      <div style="display: flex; gap: 8px;">
-        <button id="commentsync-submit"
-          style="flex: 1; background: #3B82F6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;">
-          Reply
-        </button>
-        <button id="commentsync-cancel"
-          style="flex: 1; background: #f1f5f9; color: #64748b; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;">
-          Close
-        </button>
+      <div id="reply-section">
+        <textarea id="commentsync-textarea"
+          placeholder="Add a reply..."
+          style="width: 100%; height: 60px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; resize: none; font-family: inherit; margin-bottom: 8px; box-sizing: border-box;"
+        ></textarea>
+        <input type="file" id="commentsync-attachment" accept="image/*" style="display: none;" />
+        <div style="display: flex; gap: 8px;">
+          <button id="commentsync-attach" style="padding: 8px 12px; background: #f1f5f9; color: #64748b; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+            📎
+          </button>
+          <button id="commentsync-submit"
+            style="flex: 1; background: #3B82F6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;">
+            Reply
+          </button>
+          <button id="commentsync-cancel"
+            style="background: #f1f5f9; color: #64748b; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;">
+            Close
+          </button>
+        </div>
+        <div id="attachment-preview" style="margin-top: 8px; display: none;"></div>
       </div>
     `;
   } else {
@@ -150,37 +155,209 @@ function createCommentWidget(x, y, element, existingThread = null) {
       </div>
       <textarea id="commentsync-textarea"
         placeholder="Describe the issue or feedback..."
-        style="width: 100%; height: 100px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; resize: none; font-family: inherit; margin-bottom: 12px; box-sizing: border-box;"
+        style="width: 100%; height: 100px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; resize: none; font-family: inherit; margin-bottom: 8px; box-sizing: border-box;"
       ></textarea>
+      <input type="file" id="commentsync-attachment" accept="image/*" style="display: none;" />
       <div style="display: flex; gap: 8px;">
+        <button id="commentsync-attach" style="padding: 8px 12px; background: #f1f5f9; color: #64748b; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+          📎
+        </button>
         <button id="commentsync-submit"
           style="flex: 1; background: #3B82F6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;">
           Submit
         </button>
         <button id="commentsync-cancel"
-          style="flex: 1; background: #f1f5f9; color: #64748b; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;">
+          style="background: #f1f5f9; color: #64748b; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;">
           Cancel
         </button>
       </div>
+      <div id="attachment-preview" style="margin-top: 8px; display: none;"></div>
     `;
   }
 
   document.body.appendChild(widget);
 
   const textarea = widget.querySelector('#commentsync-textarea');
+  const attachmentInput = widget.querySelector('#commentsync-attachment');
+  const attachButton = widget.querySelector('#commentsync-attach');
+  const attachmentPreview = widget.querySelector('#attachment-preview');
+
   textarea.focus();
+
+  attachButton.onclick = () => attachmentInput.click();
+
+  attachmentInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        attachmentPreview.style.display = 'block';
+        attachmentPreview.innerHTML = `
+          <div style="position: relative; display: inline-block;">
+            <img src="${e.target.result}" style="max-width: 100px; max-height: 100px; border-radius: 6px; border: 2px solid #e2e8f0;" />
+            <button id="remove-attachment" style="position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%; background: #ef4444; color: white; border: none; cursor: pointer; font-size: 12px; line-height: 1;">×</button>
+          </div>
+        `;
+        attachmentPreview.querySelector('#remove-attachment').onclick = () => {
+          attachmentInput.value = '';
+          attachmentPreview.style.display = 'none';
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   widget.querySelector('#commentsync-close').onclick = closeWidget;
   widget.querySelector('#commentsync-cancel').onclick = closeWidget;
 
   if (existingThread) {
-    widget.querySelector('#commentsync-submit').onclick = () => submitReply(existingThread.id, textarea.value);
+    widget.querySelector('#commentsync-submit').onclick = () => {
+      const file = attachmentInput.files[0];
+      submitReply(existingThread.id, textarea.value, file);
+    };
     widget.querySelector('#commentsync-toggle-status').onclick = () => toggleThreadStatus(existingThread);
+
+    setupCommentActions(existingThread);
   } else {
-    widget.querySelector('#commentsync-submit').onclick = () => submitComment(element, textarea.value);
+    widget.querySelector('#commentsync-submit').onclick = () => {
+      const file = attachmentInput.files[0];
+      submitComment(element, textarea.value, file);
+    };
   }
 
   return widget;
+}
+
+function renderComment(comment, threadId) {
+  const isOwner = currentUserId === comment.author_id;
+  const isEditing = editingCommentId === comment.id;
+
+  if (isEditing) {
+    return `
+      <div id="comment-${comment.id}" style="margin-bottom: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #3B82F6;">
+        <textarea id="edit-textarea-${comment.id}" style="width: 100%; height: 80px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; resize: none; font-family: inherit; margin-bottom: 8px; box-sizing: border-box;">${escapeHtml(comment.content)}</textarea>
+        <div style="display: flex; gap: 8px;">
+          <button class="save-edit-btn" data-comment-id="${comment.id}" style="flex: 1; background: #10B981; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">Save</button>
+          <button class="cancel-edit-btn" style="flex: 1; background: #f1f5f9; color: #64748b; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">Cancel</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div id="comment-${comment.id}" style="margin-bottom: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #3B82F6; position: relative;">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+        <div style="font-size: 12px; font-weight: 600; color: #1e293b;">${comment.author.full_name || comment.author.email}</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="font-size: 10px; color: #64748b;">${formatDate(comment.created_at)}</div>
+          ${isOwner ? `
+            <div style="position: relative;">
+              <button class="comment-menu-btn" data-comment-id="${comment.id}" style="background: none; border: none; color: #64748b; cursor: pointer; padding: 2px; font-size: 16px; line-height: 1;">⋮</button>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+      <div style="font-size: 13px; color: #475569; white-space: pre-wrap; margin-bottom: 8px;">${escapeHtml(comment.content)}</div>
+      ${comment.metadata?.attachments ? renderAttachments(comment.metadata.attachments) : ''}
+    </div>
+  `;
+}
+
+function renderAttachments(attachments) {
+  if (!attachments || attachments.length === 0) return '';
+
+  return `
+    <div style="display: flex; flex-wrap: gap; gap: 8px; margin-top: 8px;">
+      ${attachments.map(url => `
+        <a href="${url}" target="_blank" style="display: block;">
+          <img src="${url}" style="max-width: 120px; max-height: 120px; border-radius: 6px; border: 2px solid #e2e8f0; cursor: pointer;" />
+        </a>
+      `).join('')}
+    </div>
+  `;
+}
+
+function setupCommentActions(thread) {
+  const container = document.getElementById('comments-container');
+
+  container.addEventListener('click', (e) => {
+    const menuBtn = e.target.closest('.comment-menu-btn');
+    if (menuBtn) {
+      const commentId = menuBtn.getAttribute('data-comment-id');
+      showCommentMenu(commentId, menuBtn, thread.id);
+      return;
+    }
+
+    const saveBtn = e.target.closest('.save-edit-btn');
+    if (saveBtn) {
+      const commentId = saveBtn.getAttribute('data-comment-id');
+      const textarea = document.getElementById(`edit-textarea-${commentId}`);
+      saveCommentEdit(commentId, textarea.value);
+      return;
+    }
+
+    const cancelBtn = e.target.closest('.cancel-edit-btn');
+    if (cancelBtn) {
+      editingCommentId = null;
+      loadThreads();
+      return;
+    }
+  });
+}
+
+function showCommentMenu(commentId, buttonElement, threadId) {
+  const existingMenu = document.querySelector('.comment-menu-dropdown');
+  if (existingMenu) existingMenu.remove();
+
+  const menu = document.createElement('div');
+  menu.className = 'comment-menu-dropdown';
+  const rect = buttonElement.getBoundingClientRect();
+
+  menu.style.cssText = `
+    position: fixed;
+    top: ${rect.bottom + 5}px;
+    right: ${window.innerWidth - rect.right}px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 10000000;
+    overflow: hidden;
+    min-width: 120px;
+  `;
+
+  menu.innerHTML = `
+    <button class="menu-edit" data-comment-id="${commentId}" style="width: 100%; padding: 10px 16px; background: none; border: none; text-align: left; cursor: pointer; font-size: 13px; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+      ✏️ Edit
+    </button>
+    <button class="menu-delete" data-comment-id="${commentId}" data-thread-id="${threadId}" style="width: 100%; padding: 10px 16px; background: none; border: none; text-align: left; cursor: pointer; font-size: 13px; color: #ef4444; display: flex; align-items: center; gap: 8px;">
+      🗑️ Delete
+    </button>
+  `;
+
+  document.body.appendChild(menu);
+
+  menu.querySelector('.menu-edit').onclick = () => {
+    editingCommentId = commentId;
+    menu.remove();
+    loadThreads();
+  };
+
+  menu.querySelector('.menu-delete').onclick = () => {
+    if (confirm('Delete this comment?')) {
+      deleteComment(commentId, threadId);
+    }
+    menu.remove();
+  };
+
+  setTimeout(() => {
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target) && e.target !== buttonElement) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    document.addEventListener('click', closeMenu);
+  }, 100);
 }
 
 function formatDate(dateString) {
@@ -211,9 +388,10 @@ function closeWidget() {
   }
   hideHighlight();
   selectedElement = null;
+  editingCommentId = null;
 }
 
-async function submitComment(element, text) {
+async function submitComment(element, text, file) {
   if (!text.trim()) {
     alert('Please enter a comment');
     return;
@@ -229,7 +407,8 @@ async function submitComment(element, text) {
       y: rect.top + window.scrollY,
       screenshot: response.screenshot,
       viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight
+      viewportHeight: window.innerHeight,
+      attachment: file ? await fileToBase64(file) : null
     };
 
     chrome.runtime.sendMessage(
@@ -247,14 +426,16 @@ async function submitComment(element, text) {
   });
 }
 
-async function submitReply(threadId, text) {
+async function submitReply(threadId, text, file) {
   if (!text.trim()) {
     alert('Please enter a reply');
     return;
   }
 
+  const attachment = file ? await fileToBase64(file) : null;
+
   chrome.runtime.sendMessage(
-    { type: 'SAVE_REPLY', threadId, text: text.trim() },
+    { type: 'SAVE_REPLY', threadId, text: text.trim(), attachment },
     (response) => {
       if (response.success) {
         showNotification('Reply added!', 'success');
@@ -265,6 +446,50 @@ async function submitReply(threadId, text) {
       }
     }
   );
+}
+
+async function saveCommentEdit(commentId, newText) {
+  if (!newText.trim()) {
+    alert('Comment cannot be empty');
+    return;
+  }
+
+  chrome.runtime.sendMessage(
+    { type: 'EDIT_COMMENT', commentId, text: newText.trim() },
+    (response) => {
+      if (response.success) {
+        showNotification('Comment updated!', 'success');
+        editingCommentId = null;
+        loadThreads();
+      } else {
+        showNotification('Failed to update comment', 'error');
+      }
+    }
+  );
+}
+
+async function deleteComment(commentId, threadId) {
+  chrome.runtime.sendMessage(
+    { type: 'DELETE_COMMENT', commentId, threadId },
+    (response) => {
+      if (response.success) {
+        showNotification('Comment deleted!', 'success');
+        closeWidget();
+        loadThreads();
+      } else {
+        showNotification('Failed to delete comment', 'error');
+      }
+    }
+  );
+}
+
+async function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 async function toggleThreadStatus(thread) {
@@ -317,7 +542,8 @@ function handleElementClick(e) {
       e.target.closest('#commentsync-indicator') ||
       e.target.closest('#commentsync-highlight-overlay') ||
       e.target.closest('.commentsync-pin') ||
-      e.target.closest('#commentsync-sidebar')) {
+      e.target.closest('#commentsync-sidebar') ||
+      e.target.closest('.comment-menu-dropdown')) {
     return;
   }
 
@@ -325,7 +551,6 @@ function handleElementClick(e) {
   e.stopPropagation();
 
   selectedElement = e.target;
-  const rect = e.target.getBoundingClientRect();
 
   commentWidget = createCommentWidget(
     e.clientX + 10,
@@ -479,7 +704,7 @@ function createThreadSidebar() {
 
     return `
       <div class="thread-item" data-thread-id="${thread.id}" style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;">
-        <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 4px;">
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 4px;">
           <div style="font-size: 12px; font-weight: 600; color: #1e293b; flex: 1;">${latestComment.author.full_name || latestComment.author.email}</div>
           <span style="padding: 2px 6px; font-size: 10px; border-radius: 4px; ${thread.status === 'resolved' ? 'background: #ECFDF5; color: #059669;' : 'background: #FEF3C7; color: #D97706;'}">${thread.status}</span>
         </div>
@@ -510,7 +735,7 @@ function createThreadSidebar() {
       const thread = threadsData.find(t => t.id === threadId);
       if (thread) {
         const rect = item.getBoundingClientRect();
-        commentWidget = createCommentWidget(rect.left - 370, rect.top, document.body, thread);
+        commentWidget = createCommentWidget(rect.left - 390, rect.top, document.body, thread);
       }
     };
   });
@@ -525,6 +750,17 @@ async function loadThreads() {
       createCommentPins();
       if (threadSidebar) {
         createThreadSidebar();
+      }
+
+      if (commentWidget && editingCommentId) {
+        const currentThread = threadsData.find(t =>
+          t.comments.some(c => c.id === editingCommentId)
+        );
+        if (currentThread) {
+          const rect = commentWidget.getBoundingClientRect();
+          commentWidget.remove();
+          commentWidget = createCommentWidget(rect.left, rect.top, document.body, currentThread);
+        }
       }
     }
   });
