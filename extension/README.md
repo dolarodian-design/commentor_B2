@@ -11,15 +11,6 @@ This Chrome extension allows testers to add contextual feedback on any web appli
 - Real-time sync with CommentSync dashboard
 - Visual element highlighting
 - Session management
-- Smart widget positioning near comment pins
-- Redesigned header with all controls:
-  - Status toggle (○ Open / ✓ Resolved)
-  - Delete thread button (🗑️)
-  - Close widget button (×)
-  - URL display with truncation
-- Dropdown menu bounds checking (no overflow)
-- Thread and individual comment deletion
-- File attachments support
 
 ## Installation
 
@@ -72,30 +63,17 @@ function openDashboard(e) {
 7. Click on any element to add comments
 8. Fill in feedback and click Submit
 9. Comments are automatically saved to CommentSync
-10. Click existing comment pins to:
-    - View full thread conversation
-    - Reply to comments
-    - Toggle thread status (Open/Resolved)
-    - Delete individual comments or entire thread
-    - Attach files to comments
 
 ### For Authors/Product Owners:
 
 1. Log into CommentSync dashboard
 2. View all comments for your app
-3. Click on any comment pin to see:
-   - Page URL (with smart truncation)
-   - Full thread conversation
+3. Click on any comment to see:
+   - Page URL
    - DOM element selector
    - Screenshot
    - Tester's feedback
-   - File attachments
-4. Manage threads:
-   - Toggle status between Open/Resolved using header button
-   - Delete entire thread with trash icon in header
-   - Reply to comments inline
-   - Navigate directly to the commented element
-5. Widget opens near the comment pin for spatial context
+4. Navigate directly to the commented element
 
 ## How It Works
 
